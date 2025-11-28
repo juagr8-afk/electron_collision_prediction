@@ -31,9 +31,7 @@ The following regression model was trained and evaluated:
 | Model             | Metrics (Test set) |
 |-----------------|------------------|
 | Linear Regression | MAE, RMSE, R²   |
-|-----------------|------------------|
 | RandomForest | MAE, RMSE, R²   |
-|-----------------|------------------|
 | CNN1D | MAE, RMSE, R²   |
 
 > Evaluation metrics and the plot `xgb_pred_vs_true.png` illustrate predicted vs. true M values.
