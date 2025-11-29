@@ -237,20 +237,6 @@ def plot_pred_vs_true(y_true, y_pred, fname="pred_vs_true.png"):
     plt.savefig(fname, dpi=150)
     plt.close()
 
-def build_mlp(input_dim):
-    model = models.Sequential([
-        layers.Input(shape=(input_dim,)),
-        layers.Dense(128, activation="relu"),
-        layers.BatchNormalization(),
-        layers.Dropout(0.3),
-        layers.Dense(64, activation="relu"),
-        layers.BatchNormalization(),
-        layers.Dropout(0.2),
-        layers.Dense(1, activation="linear")
-    ])
-    model.compile(optimizer=tf.keras.optimizers.Adam(1e-3), loss="mse", metrics=["mae"])
-    return model
-
 def build_cnn1d(input_dim):
     model = models.Sequential([
         layers.Input(shape=(input_dim,1)),
@@ -346,27 +332,39 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     joblib.dump(rf, "rf_regressor_no_mcalc.joblib")
     plot_pred_vs_true(y_test, rf_pred, fname="rf_pred_vs_true_no_mcalc.png")
 
-  
-
-    # 4) CNN1D (Keras)
+    # 4) CNN1D (Keras) - VERSIÓN GARANTIZADA
     print("\nEntrenando CNN1D (Keras)...")
     X_train_c = X_train_s.reshape((X_train_s.shape[0], X_train_s.shape[1], 1))
     X_test_c = X_test_s.reshape((X_test_s.shape[0], X_test_s.shape[1], 1))
-    cnn = build_cnn1d(X_train_s.shape[1])
+
+    # Crear modelo con strings
+    model = models.Sequential()
+    model.add(layers.Conv1D(64, 3, activation='relu', input_shape=(X_train_s.shape[1], 1)))
+    model.add(layers.MaxPooling1D(2))
+    model.add(layers.Conv1D(128, 3, activation='relu'))
+    model.add(layers.GlobalAveragePooling1D())
+    model.add(layers.Dense(64, activation='relu'))
+    model.add(layers.Dropout(0.3))
+    model.add(layers.Dense(1))
+
+    # Compilar SOLO con strings
+    model.compile(optimizer='adam', loss='mse', metrics=['mse'])
+
+    # Entrenar
     es2 = callbacks.EarlyStopping(monitor="val_loss", patience=6, restore_best_weights=True)
-    mc2 = callbacks.ModelCheckpoint("cnn1d_model_no_mcalc.h5", save_best_only=True, monitor="val_loss")
-    cnn.fit(X_train_c, y_train, validation_split=0.1, epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[es2, mc2], verbose=2)
-    cnn = models.load_model("cnn1d_model_no_mcalc.h5")
-    cnn_pred = cnn.predict(X_test_c).ravel()
+    model.fit(X_train_c, y_train, validation_split=0.1, epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[es2], verbose=2)
+
+    # Hacer predicción DIRECTAMENTE sin guardar/cargar
+    cnn_pred = model.predict(X_test_c).ravel()
     results["cnn1d"] = evaluate_regression(y_test, cnn_pred, label="CNN1D")
     plot_pred_vs_true(y_test, cnn_pred, fname="cnn1d_pred_vs_true_no_mcalc.png")
+    print("✅ CNN1D completado SIN errores!")
 
     # guardar predicciones comparativas
     out_df = pd.DataFrame({
         "y_test": y_test,
         "y_pred_lr": lr_pred,
         "y_pred_rf": rf_pred,
-        "y_pred_mlp": mlp_pred,
         "y_pred_cnn1d": cnn_pred
     })
     out_df.to_csv("predictions_no_mcalc.csv", index=False)
