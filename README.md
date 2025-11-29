@@ -5,7 +5,7 @@ This project implements a **regression pipeline** to predict the **invariant mas
 
 ## Dataset
 
-- Contains ~100k dielectron collision events.  
+- Contains ~100k dielectron collision events. Taken from Kaggle: Cern Electron Collision Data. 
 - Main columns:
   - `E1`, `E2`: Total energy of each electron (GeV)
   - `px1, py1, pz1, px2, py2, pz2`: Momentum components (GeV)
@@ -40,10 +40,4 @@ The following regression model was trained and evaluated:
 
 - Plot comparing predictions and ground truth: `xgb_pred_vs_true.png`.  
 
-## Usage
 
-1. Place the CSV (`datacern_electron_collision.csv`) in the project folder.  
-2. Run:
-
-```bash
-python predict_cern_m.py
