@@ -20,19 +20,18 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import tensorflow as tf
 from tensorflow.keras import layers, models, callbacks
 
-# ---------------- CONFIG ----------------
+
 OUT_PROCESSED = "processed_data.csv"
 EXTRACT_DIR = "extracted_data"
 CHUNKSIZE = 100_000
 TEST_SIZE = 0.2
 RND = 42
 N_JOBS = -1
-TRAIN_ON_SAMPLE = False   # True para debug (usar menos filas)
+TRAIN_ON_SAMPLE = False   
 SAMPLE_N = 50_000
-# NN params (ajustá si querés más rápido)
 BATCH_SIZE = 256
 EPOCHS = 30
-# ----------------------------------------
+
 
 # ---------------- util: buscar alias de columna ----------------
 def find_alias(colset, base):
@@ -72,7 +71,7 @@ def try_reconstruct(chunk, idx):
             created.append(pz_c)
     return chunk, created
 
-# ---------------- función robusta de procesado (SIN M_calc) ----------------
+# extracting csvs
 def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize=CHUNKSIZE):
     csv_files = glob.glob(os.path.join(extract_dir, "**", "*.csv"), recursive=True)
     if not csv_files:
@@ -85,7 +84,6 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
     processed_any = False
 
     for csv_path in csv_files:
-        print("\nProcesando:", csv_path)
         reader = pd.read_csv(csv_path, chunksize=chunksize)
         for chunk in tqdm(reader, desc=f"chunks {os.path.basename(csv_path)}", leave=False):
             cols = list(chunk.columns)
@@ -118,7 +116,7 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
                         return pd.Series([np.nan]*len(df))
                     return pd.Series([default]*len(df))
 
-            # construir df defensivo (NO calculamos ni guardamos M_calc)
+            # construir df defensivo 
             dfc = pd.DataFrame()
             dfc["E1"] = getcol(chunk, "E1", np.nan)
             dfc["E2"] = getcol(chunk, "E2", np.nan)
@@ -197,12 +195,12 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
             # reemplazar +/-inf por NaN
             dfc = dfc.replace([np.inf, -np.inf], np.nan)
 
-            # eliminar filas sin target M
+            # delete rows without target M
             dfc = dfc[~dfc["M"].isna()]
             if dfc.shape[0] == 0:
                 continue
 
-            # columnas finales (NO incluye M_calc)
+            # final columns
             final_cols = ["E1","E2","px1","py1","pz1","px2","py2","pz2","pt1","pt2","eta1","eta2","phi1","phi2",
                           "E_sum","pt_sum","pt_ratio","eta_diff","phi_diff","deltaR","px_sum","py_sum","pz_sum",
                           "p_sum","pt_system","eta_system","opening_angle","Q_tot","M"]
@@ -216,7 +214,7 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
         raise RuntimeError("No se procesó ningún chunk (todos fueron saltados). Revisa las columnas del CSV.")
     print("\nProcesado completado. Archivo:", out_csv, " tamaño MB:", os.path.getsize(out_csv)/1024**2)
 
-# ---------------- funciones para modelado y utilidad ----------------
+# ---------------- functions for models ----------------
 def evaluate_regression(y_true, y_pred, label="Model"):
     mae = mean_absolute_error(y_true, y_pred)
     mse = mean_squared_error(y_true, y_pred)
@@ -347,20 +345,18 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     model.add(layers.Dropout(0.3))
     model.add(layers.Dense(1))
 
-    # Compilar SOLO con strings
     model.compile(optimizer='adam', loss='mse', metrics=['mse'])
 
     # Entrenar
     es2 = callbacks.EarlyStopping(monitor="val_loss", patience=6, restore_best_weights=True)
     model.fit(X_train_c, y_train, validation_split=0.1, epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[es2], verbose=2)
 
-    # Hacer predicción DIRECTAMENTE sin guardar/cargar
     cnn_pred = model.predict(X_test_c).ravel()
     results["cnn1d"] = evaluate_regression(y_test, cnn_pred, label="CNN1D")
     plot_pred_vs_true(y_test, cnn_pred, fname="cnn1d_pred_vs_true_no_mcalc.png")
     print("✅ CNN1D completado SIN errores!")
 
-    # guardar predicciones comparativas
+    # save comparative predictions
     out_df = pd.DataFrame({
         "y_test": y_test,
         "y_pred_lr": lr_pred,
@@ -369,24 +365,23 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     })
     out_df.to_csv("predictions_no_mcalc.csv", index=False)
     joblib.dump(results, "regression_results_no_mcalc.joblib")
-    print("\nGuardado: modelos y predictions_no_mcalc.csv")
+    
 
-# ---------------- RUN (Colab-friendly) ----------------
-print("Subí el ZIP con los CSV (aparecerá el selector).")
+# Loading data
+print("Upload zip file")
 uploaded = files.upload()
 if len(uploaded) == 0:
     raise RuntimeError("No subiste ningún archivo.")
 zip_name = list(uploaded.keys())[0]
 print("ZIP subido:", zip_name)
 
-# extraer el zip en carpeta EXTRACT_DIR
+# extract zip in file EXTRACT_DIR
 os.makedirs(EXTRACT_DIR, exist_ok=True)
 with zipfile.ZipFile(zip_name, "r") as z:
     z.extractall(EXTRACT_DIR)
 print("ZIP extraído en:", EXTRACT_DIR)
 
-# procesar robustamente (SIN calcular M_calc)
 robust_process_zip(EXTRACT_DIR, OUT_PROCESSED, CHUNKSIZE)
 
-# entrenar desde processed_data.csv (sin M_calc)
+# train from processed_data.csv
 train_from_processed(OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE, sample_n=SAMPLE_N)
