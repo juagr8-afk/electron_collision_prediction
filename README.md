@@ -34,10 +34,10 @@ The following regression model was trained and evaluated:
 | RandomForest | MAE =  0.6350, RMSE = 1.4304 , R²= 0.9968  |
 | CNN1D | MAE = 5.2562 , RMSE = 7.4292 , R² = 0.9137 |
 
-> Evaluation metrics and the plot `xgb_pred_vs_true.png` illustrate predicted vs. true M values.
+> Evaluation metrics and the plot `pred_vs_true.png` illustrate predicted vs. true M values.
 
 ## Results
 
-- Plot comparing predictions and ground truth: `xgb_pred_vs_true.png`.  
+- Plot comparing predictions and ground truth: `pred_vs_true.png`.  
 
 
