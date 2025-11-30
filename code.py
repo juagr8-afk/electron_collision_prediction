@@ -48,9 +48,8 @@ def find_alias(colset, base):
             return c
     return None
 
-# ---------------- reconstrucción px,py,pz desde pt,phi,eta ----------------
+# reconstructing px,py,pz from pt,phi,eta if px{idx},py{idx},pz{idx} are missing
 def try_reconstruct(chunk, idx):
-    """Si faltan px{idx},py{idx},pz{idx} pero existen pt,phi,eta, las reconstruye."""
     cols = list(chunk.columns)
     pt_col = find_alias(cols, f"pt{idx}")
     phi_col = find_alias(cols, f"phi{idx}")
@@ -74,9 +73,6 @@ def try_reconstruct(chunk, idx):
 # extracting csvs
 def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize=CHUNKSIZE):
     csv_files = glob.glob(os.path.join(extract_dir, "**", "*.csv"), recursive=True)
-    if not csv_files:
-        raise FileNotFoundError("No se encontraron CSVs en el directorio de extracción.")
-    print("CSV encontrados:", csv_files)
 
     if os.path.exists(out_csv):
         os.remove(out_csv)
@@ -92,7 +88,7 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
                 print("  WARNING: este chunk no tiene 'M' -> saltando")
                 continue
 
-            # intentar reconstruir px/py/pz si faltan
+            # try reconstructing px/py/pz if missing
             for idx in [1,2]:
                 chunk, created = try_reconstruct(chunk, idx)
                 if created:
@@ -160,7 +156,7 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
             # target
             dfc["M"] = chunk[m_alias]
 
-            # derived features (SIN M_calc)
+            # derived features
             dfc["E_sum"] = dfc["E1"] + dfc["E2"]
             dfc["pt_sum"] = dfc["pt1"] + dfc["pt2"]
             dfc["pt_ratio"] = (dfc["pt1"] + 1e-9) / (dfc["pt2"] + 1e-9)
@@ -210,8 +206,6 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
             out_chunk.to_csv(out_csv, mode="a", header=header, index=False)
             processed_any = True
 
-    if not processed_any:
-        raise RuntimeError("No se procesó ningún chunk (todos fueron saltados). Revisa las columnas del CSV.")
     print("\nProcesado completado. Archivo:", out_csv, " tamaño MB:", os.path.getsize(out_csv)/1024**2)
 
 # ---------------- functions for models ----------------
@@ -251,10 +245,8 @@ def build_cnn1d(input_dim):
     model.compile(optimizer=tf.keras.optimizers.Adam(1e-3), loss="mse", metrics=["mae"])
     return model
 
-# ---------------- entrenamiento desde processed_data.csv ----------------
+# train processed_data.csv 
 def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE, sample_n=SAMPLE_N):
-    if not os.path.exists(out_csv):
-        raise FileNotFoundError(f"No encontré {out_csv}. Primero corre el procesado del ZIP.")
 
     # lectura o muestreo
     if train_on_sample:
@@ -268,7 +260,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
 
     print("df raw shape:", df.shape)
 
-    # asegurar que M_calc no esté (por si alguien lo dejó)
+    
     if "M_calc" in df.columns:
         print("Eliminando columna 'M_calc' antes de entrenar (evitar leakage).")
         df = df.drop(columns=["M_calc"])
@@ -284,7 +276,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
 
     # Imputación: para columnas numéricas imputar la media
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-    numeric_cols = [c for c in numeric_cols if c != "M"]  # no imputar target
+    numeric_cols = [c for c in numeric_cols if c != "M"]  
     print("Columnas numéricas que se imputarán (mean):", numeric_cols)
 
     imputer = SimpleImputer(strategy="mean")
@@ -292,18 +284,18 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     df_num_imputed = pd.DataFrame(imputer.fit_transform(df_num), columns=numeric_cols, index=df.index)
     df[numeric_cols] = df_num_imputed
 
-    # preparar X,y
+    # prepare X,y
     X = df.drop(columns=["M"]).astype(np.float32)
     y = df["M"].astype(np.float32).values
     feature_names = X.columns.tolist()
     print("Features usadas:", feature_names)
     print("X shape:", X.shape, " y shape:", y.shape)
 
-    # split
+    # split train and test data
     X_train, X_test, y_train, y_test = train_test_split(X.values, y, test_size=TEST_SIZE, random_state=RND)
     print("Train/Test shapes:", X_train.shape, X_test.shape)
 
-    # escalado
+    # scale
     scaler = StandardScaler()
     X_train_s = scaler.fit_transform(X_train)
     X_test_s = scaler.transform(X_test)
@@ -313,7 +305,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     results = {}
 
     # 1) Linear Regression
-    print("\nEntrenando Linear Regression...")
+    print("\nTraining Linear Regression...")
     lr = LinearRegression()
     lr.fit(X_train_s, y_train)
     lr_pred = lr.predict(X_test_s)
@@ -322,7 +314,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     plot_pred_vs_true(y_test, lr_pred, fname="lr_pred_vs_true_no_mcalc.png")
 
     # 2) RandomForest
-    print("\nEntrenando RandomForestRegressor...")
+    print("\nTraining RandomForestRegressor...")
     rf = RandomForestRegressor(n_estimators=200, random_state=RND, n_jobs=N_JOBS)
     rf.fit(X_train_s, y_train)
     rf_pred = rf.predict(X_test_s)
@@ -330,8 +322,8 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     joblib.dump(rf, "rf_regressor_no_mcalc.joblib")
     plot_pred_vs_true(y_test, rf_pred, fname="rf_pred_vs_true_no_mcalc.png")
 
-    # 4) CNN1D (Keras) - VERSIÓN GARANTIZADA
-    print("\nEntrenando CNN1D (Keras)...")
+    # 4) CNN1D (Keras) 
+    print("\nTraining CNN1D (Keras)...")
     X_train_c = X_train_s.reshape((X_train_s.shape[0], X_train_s.shape[1], 1))
     X_test_c = X_test_s.reshape((X_test_s.shape[0], X_test_s.shape[1], 1))
 
@@ -371,7 +363,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
 print("Upload zip file")
 uploaded = files.upload()
 if len(uploaded) == 0:
-    raise RuntimeError("No subiste ningún archivo.")
+    raise RuntimeError("No files uploaded")
 zip_name = list(uploaded.keys())[0]
 print("ZIP subido:", zip_name)
 
@@ -383,5 +375,4 @@ print("ZIP extraído en:", EXTRACT_DIR)
 
 robust_process_zip(EXTRACT_DIR, OUT_PROCESSED, CHUNKSIZE)
 
-# train from processed_data.csv
 train_from_processed(OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE, sample_n=SAMPLE_N)
