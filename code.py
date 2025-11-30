@@ -33,7 +33,7 @@ BATCH_SIZE = 256
 EPOCHS = 30
 
 
-# ---------------- util: buscar alias de columna ----------------
+# find column alias
 def find_alias(colset, base):
     """Busca un nombre en colset que corresponda a base (ej 'px1' ~ 'px_1','p_x1','PX1',etc)."""
     if base in colset:
@@ -91,17 +91,12 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
             # try reconstructing px/py/pz if missing
             for idx in [1,2]:
                 chunk, created = try_reconstruct(chunk, idx)
-                if created:
-                    print("  Reconstruidas columnas:", created)
+                
 
             cols = list(chunk.columns)
             has_E = (find_alias(cols, "E1") is not None) and (find_alias(cols, "E2") is not None)
             has_px1 = all(find_alias(cols, f"{c}1") is not None for c in ["px","py","pz"])
             has_px2 = all(find_alias(cols, f"{c}2") is not None for c in ["px","py","pz"])
-
-            if not (has_E or (has_px1 and has_px2)):
-                print("  WARNING: no hay E1/E2 ni px/py/pz reconstruibles -> saltando chunk")
-                continue
 
             def getcol(df, name, default=None):
                 alias = find_alias(df.columns, name)
@@ -112,7 +107,7 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
                         return pd.Series([np.nan]*len(df))
                     return pd.Series([default]*len(df))
 
-            # construir df defensivo 
+            # backup dataframe
             dfc = pd.DataFrame()
             dfc["E1"] = getcol(chunk, "E1", np.nan)
             dfc["E2"] = getcol(chunk, "E2", np.nan)
@@ -123,7 +118,7 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
             dfc["eta1"] = getcol(chunk, "eta1", np.nan)
             dfc["eta2"] = getcol(chunk, "eta2", np.nan)
 
-            # px/py/pz defensivo
+            # px/py/pz backup
             for idx in [1,2]:
                 for comp in ["px","py","pz"]:
                     cname = f"{comp}{idx}"
@@ -206,7 +201,6 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
             out_chunk.to_csv(out_csv, mode="a", header=header, index=False)
             processed_any = True
 
-    print("\nProcesado completado. Archivo:", out_csv, " tamaño MB:", os.path.getsize(out_csv)/1024**2)
 
 # ---------------- functions for models ----------------
 def evaluate_regression(y_true, y_pred, label="Model"):
@@ -248,7 +242,7 @@ def build_cnn1d(input_dim):
 # train processed_data.csv 
 def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE, sample_n=SAMPLE_N):
 
-    # lectura o muestreo
+    # samples
     if train_on_sample:
         print(f"Cargando muestra aleatoria de {sample_n} filas (debug)...")
         df_all = pd.read_csv(out_csv)
@@ -327,7 +321,6 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     X_train_c = X_train_s.reshape((X_train_s.shape[0], X_train_s.shape[1], 1))
     X_test_c = X_test_s.reshape((X_test_s.shape[0], X_test_s.shape[1], 1))
 
-    # Crear modelo con strings
     model = models.Sequential()
     model.add(layers.Conv1D(64, 3, activation='relu', input_shape=(X_train_s.shape[1], 1)))
     model.add(layers.MaxPooling1D(2))
@@ -339,7 +332,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
 
     model.compile(optimizer='adam', loss='mse', metrics=['mse'])
 
-    # Entrenar
+    # train
     es2 = callbacks.EarlyStopping(monitor="val_loss", patience=6, restore_best_weights=True)
     model.fit(X_train_c, y_train, validation_split=0.1, epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[es2], verbose=2)
 
