@@ -182,7 +182,7 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
                 dfc["eta_system"] = 0.5 * np.log(np.where(dfc["p_sum"] - dfc["pz_sum"] == 0, 1.0, (dfc["p_sum"] + dfc["pz_sum"]) / (dfc["p_sum"] - dfc["pz_sum"])))
             dfc["eta_system"] = dfc["eta_system"].replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
-            # replace +/-inf por NaN
+            # replace +/-inf with NaN
             dfc = dfc.replace([np.inf, -np.inf], np.nan)
 
             # delete rows without target M
@@ -272,7 +272,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     X = df.drop(columns=["M"]).astype(np.float32)
     y = df["M"].astype(np.float32).values
     feature_names = X.columns.tolist()
-    print("Features usadas:", feature_names)
+    print("Features used:", feature_names)
     print("X shape:", X.shape, " y shape:", y.shape)
 
     # split train and test data
@@ -328,7 +328,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
 
     cnn_pred = model.predict(X_test_c).ravel()
     results["cnn1d"] = evaluate_regression(y_test, cnn_pred, label="CNN1D")
-    plot_pred_vs_true(y_test, cnn_pred, fname="cnn1d_pred_vs_true_no_mcalc.png")
+    plot_pred_vs_true(y_test, cnn_pred, fname="cnn1d_pred_vs_true.png")
     
 
     # save comparative predictions
@@ -339,7 +339,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
         "y_pred_cnn1d": cnn_pred
     })
     out_df.to_csv("predictions_no_mcalc.csv", index=False)
-    joblib.dump(results, "regression_results_no_mcalc.joblib")
+    joblib.dump(results, "regression_results.joblib")
     
 
 # Loading data
@@ -348,13 +348,13 @@ uploaded = files.upload()
 if len(uploaded) == 0:
     raise RuntimeError("No files uploaded")
 zip_name = list(uploaded.keys())[0]
-print("ZIP subido:", zip_name)
+
 
 # extract zip in file EXTRACT_DIR
 os.makedirs(EXTRACT_DIR, exist_ok=True)
 with zipfile.ZipFile(zip_name, "r") as z:
     z.extractall(EXTRACT_DIR)
-print("ZIP extraído en:", EXTRACT_DIR)
+
 
 robust_process_zip(EXTRACT_DIR, OUT_PROCESSED, CHUNKSIZE)
 
