@@ -35,7 +35,6 @@ EPOCHS = 30
 
 # find column alias
 def find_alias(colset, base):
-    """Busca un nombre en colset que corresponda a base (ej 'px1' ~ 'px_1','p_x1','PX1',etc)."""
     if base in colset:
         return base
     base_norm = re.sub(r'[_\-\s]', '', base.lower())
@@ -85,7 +84,7 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
             cols = list(chunk.columns)
             m_alias = find_alias(cols, "M")
             if m_alias is None:
-                print("  WARNING: este chunk no tiene 'M' -> saltando")
+                print(" No 'M' in this chunk, skip")
                 continue
 
             # try reconstructing px/py/pz if missing
@@ -183,7 +182,7 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
                 dfc["eta_system"] = 0.5 * np.log(np.where(dfc["p_sum"] - dfc["pz_sum"] == 0, 1.0, (dfc["p_sum"] + dfc["pz_sum"]) / (dfc["p_sum"] - dfc["pz_sum"])))
             dfc["eta_system"] = dfc["eta_system"].replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
-            # reemplazar +/-inf por NaN
+            # replace +/-inf por NaN
             dfc = dfc.replace([np.inf, -np.inf], np.nan)
 
             # delete rows without target M
@@ -202,7 +201,7 @@ def robust_process_zip(extract_dir=EXTRACT_DIR, out_csv=OUT_PROCESSED, chunksize
             processed_any = True
 
 
-# ---------------- functions for models ----------------
+# functions for models 
 def evaluate_regression(y_true, y_pred, label="Model"):
     mae = mean_absolute_error(y_true, y_pred)
     mse = mean_squared_error(y_true, y_pred)
@@ -244,34 +243,25 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
 
     # samples
     if train_on_sample:
-        print(f"Cargando muestra aleatoria de {sample_n} filas (debug)...")
         df_all = pd.read_csv(out_csv)
         df = df_all.sample(n=sample_n, random_state=RND) if len(df_all) > sample_n else df_all
         del df_all
-    else:
-        print("Cargando processed_data.csv (puede tardar si es grande)...")
+    else:      
         df = pd.read_csv(out_csv)
 
     print("df raw shape:", df.shape)
 
-    
-    if "M_calc" in df.columns:
-        print("Eliminando columna 'M_calc' antes de entrenar (evitar leakage).")
-        df = df.drop(columns=["M_calc"])
 
-    # reemplazar +/-inf por NaN y eliminar filas donde target M es NaN (no imputar target)
+
+    # replace +/-inf with NaN y delete rows where  target M is NaN 
     df = df.replace([np.inf, -np.inf], np.nan)
     if "M" not in df.columns:
-        raise KeyError("No encontré columna 'M' en processed_data.csv")
-    before = df.shape[0]
-    df = df[~df["M"].isna()].copy()
-    after = df.shape[0]
-    print(f"Filas con target M faltante eliminadas: {before - after}")
+        raise KeyError("No 'M' in processed_data.csv")
 
-    # Imputación: para columnas numéricas imputar la media
+    # Imputation with mean
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     numeric_cols = [c for c in numeric_cols if c != "M"]  
-    print("Columnas numéricas que se imputarán (mean):", numeric_cols)
+   
 
     imputer = SimpleImputer(strategy="mean")
     df_num = df[numeric_cols]
@@ -293,8 +283,8 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     scaler = StandardScaler()
     X_train_s = scaler.fit_transform(X_train)
     X_test_s = scaler.transform(X_test)
-    joblib.dump(scaler, "scaler_no_mcalc.joblib")
-    joblib.dump(imputer, "imputer_no_mcalc.joblib")
+    joblib.dump(scaler, "scaler.joblib")
+    joblib.dump(imputer, "imputer.joblib")
 
     results = {}
 
@@ -304,8 +294,8 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     lr.fit(X_train_s, y_train)
     lr_pred = lr.predict(X_test_s)
     results["linear"] = evaluate_regression(y_test, lr_pred, label="LinearRegression")
-    joblib.dump(lr, "linear_regressor_no_mcalc.joblib")
-    plot_pred_vs_true(y_test, lr_pred, fname="lr_pred_vs_true_no_mcalc.png")
+    joblib.dump(lr, "linear_regressor.joblib")
+    plot_pred_vs_true(y_test, lr_pred, fname="lr_pred_vs_true.png")
 
     # 2) RandomForest
     print("\nTraining RandomForestRegressor...")
@@ -314,7 +304,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     rf_pred = rf.predict(X_test_s)
     results["rf"] = evaluate_regression(y_test, rf_pred, label="RandomForest")
     joblib.dump(rf, "rf_regressor_no_mcalc.joblib")
-    plot_pred_vs_true(y_test, rf_pred, fname="rf_pred_vs_true_no_mcalc.png")
+    plot_pred_vs_true(y_test, rf_pred, fname="rf_pred_vs_true.png")
 
     # 4) CNN1D (Keras) 
     print("\nTraining CNN1D (Keras)...")
@@ -339,7 +329,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     cnn_pred = model.predict(X_test_c).ravel()
     results["cnn1d"] = evaluate_regression(y_test, cnn_pred, label="CNN1D")
     plot_pred_vs_true(y_test, cnn_pred, fname="cnn1d_pred_vs_true_no_mcalc.png")
-    print("✅ CNN1D completado SIN errores!")
+    
 
     # save comparative predictions
     out_df = pd.DataFrame({
