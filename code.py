@@ -306,7 +306,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     joblib.dump(rf, "rf_regressor_no_mcalc.joblib")
     plot_pred_vs_true(y_test, rf_pred, fname="rf_pred_vs_true.png")
 
-    # 4) CNN1D (Keras) 
+    # 3) CNN1D (Keras) 
     print("\nTraining CNN1D (Keras)...")
     X_train_c = X_train_s.reshape((X_train_s.shape[0], X_train_s.shape[1], 1))
     X_test_c = X_test_s.reshape((X_test_s.shape[0], X_test_s.shape[1], 1))
