@@ -13,12 +13,12 @@ This project implements a **regression pipeline** to predict the **invariant mas
   - `eta1, eta2`: Pseudorapidity
   - `phi1, phi2`: Phi angle (rad)
   - `Q1, Q2`: Electron charge
-  - `M`: Invariant mass (GeV) — **target**
+  - `M`: Invariant mass (GeV) **target**
 
 ## Preprocessing
 
 1. Remove rows with `NaN` in `M`.  
-2. Add derived features:
+2. Add some derived features:
    - `E_sum`, `pt_sum`, `pt_ratio`, `eta_diff`, `phi_diff`, `deltaR`  
    - Differences of momentum components (`dpx`, `dpy`, `dpz`)
 3. Scale features using `StandardScaler`.  
