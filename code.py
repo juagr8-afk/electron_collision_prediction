@@ -308,7 +308,7 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
 
     # 3) MLP (Keras) 
     print("\nTraining MLP (Keras)...")
-    lp = build_mlp(X_train_s.shape[1])
+    mlp = build_mlp(X_train_s.shape[1])
     es = callbacks.EarlyStopping(monitor="val_loss", patience=6, restore_best_weights=True)
     mc = callbacks.ModelCheckpoint("mlp_model.h5", save_best_only=True, monitor="val_loss")
     mlp.fit(X_train_s, y_train, validation_split=0.1, epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[es, mc], verbose=2)
