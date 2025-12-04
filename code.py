@@ -235,7 +235,12 @@ def build_mlp(input_dim):
         layers.Dense(64, activation="relu"),
         layers.Dense(1, activation="linear")
     ])
-    model.compile(optimizer=tf.keras.optimizers.Adam(1e-3), loss="mse", metrics=["mae"])
+    
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(1e-3), 
+        loss="mse",  # ¡STRING!
+        metrics=["mae"]  # ¡STRING!
+    )
     return model
 
 # train processed_data.csv 
