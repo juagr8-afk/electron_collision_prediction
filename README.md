@@ -32,7 +32,7 @@ The following regression model was trained and evaluated:
 |-----------------|------------------|
 | Linear Regression | MAE = 4.9797, RMSE= 6.9269, R² = 0.9250   |
 | RandomForest | MAE =  0.6350, RMSE = 1.4304 , R²= 0.9968  |
-| CNN1D | MAE = 5.2562 , RMSE = 7.4292 , R² = 0.9137 |
+| MLP | MAE =  , RMSE =  , R² =  |
 
 > Evaluation metrics and the plot `pred_vs_true.png` illustrate predicted vs. true M values.
 
