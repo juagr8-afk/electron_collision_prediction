@@ -26,7 +26,7 @@ This project implements a **regression pipeline** to predict the **invariant mas
 
 ## Model
 
-The following regression model was trained and evaluated:
+The following regression models were trained and evaluated:
 
 | Model             | Metrics (Test set) |
 |-----------------|------------------|
@@ -34,7 +34,6 @@ The following regression model was trained and evaluated:
 | RandomForest | MAE =  0.6350, RMSE = 1.4304 , R²= 0.9968  |
 | MLP | MAE =  , RMSE =  , R² =  |
 
-> Evaluation metrics and the plot `pred_vs_true.png` illustrate predicted vs. true M values.
 
 ## Results
 
