@@ -222,17 +222,17 @@ def plot_pred_vs_true(y_true, y_pred, fname="pred_vs_true.png"):
     plt.savefig(fname, dpi=150)
     plt.close()
 
-def build_cnn1d(input_dim):
+
+def build_mlp(input_dim):
     model = models.Sequential([
-        layers.Input(shape=(input_dim,1)),
-        layers.Conv1D(32, 3, padding="same", activation="relu"),
+        layers.Input(shape=(input_dim,)),
+        layers.Dense(256, activation="relu"),
         layers.BatchNormalization(),
-        layers.MaxPooling1D(2),
-        layers.Conv1D(64, 3, padding="same", activation="relu"),
+        layers.Dropout(0.3),
+        layers.Dense(128, activation="relu"),
         layers.BatchNormalization(),
-        layers.GlobalAveragePooling1D(),
-        layers.Dense(64, activation="relu"),
         layers.Dropout(0.25),
+        layers.Dense(64, activation="relu"),
         layers.Dense(1, activation="linear")
     ])
     model.compile(optimizer=tf.keras.optimizers.Adam(1e-3), loss="mse", metrics=["mae"])
@@ -306,39 +306,26 @@ def train_from_processed(out_csv=OUT_PROCESSED, train_on_sample=TRAIN_ON_SAMPLE,
     joblib.dump(rf, "rf_regressor_no_mcalc.joblib")
     plot_pred_vs_true(y_test, rf_pred, fname="rf_pred_vs_true.png")
 
-    # 3) CNN1D (Keras) 
-    print("\nTraining CNN1D (Keras)...")
-    X_train_c = X_train_s.reshape((X_train_s.shape[0], X_train_s.shape[1], 1))
-    X_test_c = X_test_s.reshape((X_test_s.shape[0], X_test_s.shape[1], 1))
-
-    model = models.Sequential()
-    model.add(layers.Conv1D(64, 3, activation='relu', input_shape=(X_train_s.shape[1], 1)))
-    model.add(layers.MaxPooling1D(2))
-    model.add(layers.Conv1D(128, 3, activation='relu'))
-    model.add(layers.GlobalAveragePooling1D())
-    model.add(layers.Dense(64, activation='relu'))
-    model.add(layers.Dropout(0.3))
-    model.add(layers.Dense(1))
-
-    model.compile(optimizer='adam', loss='mse', metrics=['mse'])
-
-    # train
-    es2 = callbacks.EarlyStopping(monitor="val_loss", patience=6, restore_best_weights=True)
-    model.fit(X_train_c, y_train, validation_split=0.1, epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[es2], verbose=2)
-
-    cnn_pred = model.predict(X_test_c).ravel()
-    results["cnn1d"] = evaluate_regression(y_test, cnn_pred, label="CNN1D")
-    plot_pred_vs_true(y_test, cnn_pred, fname="cnn1d_pred_vs_true.png")
+    # 3) MLP (Keras) 
+    print("\nTraining MLP (Keras)...")
+    lp = build_mlp(X_train_s.shape[1])
+    es = callbacks.EarlyStopping(monitor="val_loss", patience=6, restore_best_weights=True)
+    mc = callbacks.ModelCheckpoint("mlp_model.h5", save_best_only=True, monitor="val_loss")
+    mlp.fit(X_train_s, y_train, validation_split=0.1, epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[es, mc], verbose=2)
+    mlp = models.load_model("mlp_model.h5")
+    mlp_pred = mlp.predict(X_test_s).ravel()
+    results["mlp"] = evaluate_regression(y_test, mlp_pred, label="MLP")
+    plot_pred_vs_true(y_test, mlp_pred, fname="mlp_pred_vs_true.png")
+ 
     
-
     # save comparative predictions
     out_df = pd.DataFrame({
         "y_test": y_test,
         "y_pred_lr": lr_pred,
         "y_pred_rf": rf_pred,
-        "y_pred_cnn1d": cnn_pred
+        "y_pred_mlp": mlp_pred
     })
-    out_df.to_csv("predictions_no_mcalc.csv", index=False)
+    out_df.to_csv("predictions.csv", index=False)
     joblib.dump(results, "regression_results.joblib")
     
 
