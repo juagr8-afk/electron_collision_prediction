@@ -32,7 +32,7 @@ The following regression models were trained and evaluated:
 |-----------------|------------------|
 | Linear Regression | MAE = 4.9797, RMSE= 6.9269, R² = 0.9250   |
 | RandomForest | MAE =  0.6350, RMSE = 1.4304 , R²= 0.9968  |
-| MLP | MAE =  , RMSE =  , R² =  |
+| MLP | MAE =  1.0482  , RMSE = 1.5687 , R² = 0.9962 |
 
 
 ## Results
